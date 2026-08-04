@@ -1,0 +1,35 @@
+# Supabase 免费版「7天无活动自动暂停」保活
+# 每 3 天 ping 一次数据库，重置暂停计时，避免长假期/空窗期被暂停。
+# 用法（GitHub 方案）：
+#   1) 新建一个免费私有仓库，把本文件放进去（路径保持 .github/workflows/keepalive.yml）
+#   2) 启用 Actions 即可。anon key 已直接写在下方 URL 中，无需配置 Secret，无需绑卡。
+# 注意：GitHub 会在仓库 60 天无提交后自动停用定时工作流，
+#       故每次运行会 commit 一个 .keepalive 时间戳文件来维持仓库活跃。
+name: Keep Supabase Awake
+on:
+  schedule:
+    - cron: "0 8 */3 * *"   # 每 3 天 UTC 08:00
+  workflow_dispatch:        # 允许手动触发测试
+permissions:
+  contents: write
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase (重置 7 天暂停计时)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://vwsgzgffyhojluzccuif.supabase.co/rest/v1/results?select=id&limit=1&apikey=sb_publishable_tSqvz01p0fj9td5QBjyRIQ_chV02GUg")
+          echo "ping -> HTTP $code"
+      - name: 维持仓库活跃（防 GitHub 60 天停用定时任务）
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 写入时间戳
+        run: |
+          date -u > .keepalive
+          git config user.name "keepalive-bot"
+          git config user.email "keepalive@users.noreply.github.com"
+          git add .keepalive
+          git commit -m "keepalive $(date -u)" || echo "nothing to commit"
+          git push
