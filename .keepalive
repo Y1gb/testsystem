@@ -1,4 +1,3 @@
-Sun Aug 16 08:05:51 UTC 2026
 # Supabase 免费版「7天无活动自动暂停」保活
 # 每 3 天 ping 一次数据库，重置暂停计时，避免长假期/空窗期被暂停。
 name: Keep Supabase Awake
