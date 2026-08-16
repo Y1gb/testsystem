@@ -1,1 +1,38 @@
-Sun Aug 16 08:18:52 UTC 2026
+name: Keep Supabase Awake
+on:
+  schedule:
+    - cron: "0 8 */3 * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase (真实写操作)
+        env:
+          KEY: sb_publishable_tSqvz01p0fj9td5QBjyRIQ_chV02GUg
+          URL: https://vwsgzgffyhojluzccuif.supabase.co
+        run: |
+          INS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$URL/rest/v1/keepalive_ping" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -H "Content-Type: application/json" -H "Prefer: return=minimal" -d '{}')
+          echo "insert heartbeat -> HTTP $INS"
+          DEL=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "$URL/rest/v1/keepalive_ping" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
+          echo "delete heartbeat -> HTTP $DEL"
+          curl -s -o /dev/null -w "select fallback -> HTTP %{http_code}\n" \
+            "$URL/rest/v1/results?select=id&limit=1&apikey=$KEY"
+      - name: 维持仓库活跃
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 写入时间戳
+        run: |
+          date -u > .keepalive
+          git config user.name "keepalive-bot"
+          git config user.email "keepalive@users.noreply.github.com"
+          git add .keepalive
+          git commit -m "keepalive $(date -u)" || echo "nothing to commit"
+          git pull --rebase origin ${GITHUB_REF_NAME} || true
+          git push origin ${GITHUB_REF_NAME} || true
