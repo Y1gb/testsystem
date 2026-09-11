@@ -21,9 +21,6 @@ jobs:
             -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
             -H "Content-Type: application/json" -H "Prefer: return=minimal" -d '{}')
           echo "insert heartbeat -> HTTP $INS"
-																								
-															  
-											  
           if [ "$INS" != "201" ]; then
             echo "::error::保活写入失败 HTTP $INS（心跳表不存在 / key 失效 / 项目已暂停）"
             exit 1
