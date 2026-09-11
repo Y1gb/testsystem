@@ -1,7 +1,10 @@
+# Supabase 免费版「7天无活动自动暂停」保活
+# 每 4 天 ping 一次数据库，重置暂停计时，避免长假期/空窗期被暂停。
+# 保活成败以 INSERT 返回 201 为准，非 201 直接失败变红，杜绝"假绿"。
 name: Keep Supabase Awake
 on:
   schedule:
-    - cron: "0 8 */4 * *"
+    - cron: "0 8 */4 * *"   # 每 4 天 UTC 08:00
   workflow_dispatch:
 permissions:
   contents: write
@@ -18,7 +21,14 @@ jobs:
             -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
             -H "Content-Type: application/json" -H "Prefer: return=minimal" -d '{}')
           echo "insert heartbeat -> HTTP $INS"
-          DEL=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "$URL/rest/v1/keepalive_ping" \
+																								
+															  
+											  
+          if [ "$INS" != "201" ]; then
+            echo "::error::保活写入失败 HTTP $INS（心跳表不存在 / key 失效 / 项目已暂停）"
+            exit 1
+          fi
+          DEL=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "$URL/rest/v1/keepalive_ping?id=neq.00000000-0000-0000-0000-000000000000" \
             -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
           echo "delete heartbeat -> HTTP $DEL"
           curl -s -o /dev/null -w "select fallback -> HTTP %{http_code}\n" \
