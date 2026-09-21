@@ -1,10 +1,12 @@
-# Supabase 免费版「7天无活动自动暂停」保活
-# 每 4 天 ping 一次数据库，重置暂停计时，避免长假期/空窗期被暂停。
-# 保活成败以 INSERT 返回 201 为准，非 201 直接失败变红，杜绝"假绿"。
+# Supabase 免费版「7天无活动自动暂停」保活（双保险版 2026-09-21）
+# 信号1：Session pooler 数据库直连（psql，独立于 REST 的官方活动信号，IPv4 可跑）
+# 信号2：REST 心跳写入（保留原有通道）
+# 附带：仓库自 commit，防止 GitHub 60 天无活动禁用定时任务
+# 失败判定：psql 退出码非 0 或 REST INSERT 非 201 → run 变红，杜绝假绿
 name: Keep Supabase Awake
 on:
   schedule:
-    - cron: "0 8 */4 * *"   # 每 4 天 UTC 08:00
+    - cron: "0 8 * * *"   # 每天 UTC 08:00（北京时间 16:00 左右，GitHub 常延迟 1-5 小时）
   workflow_dispatch:
 permissions:
   contents: write
@@ -12,7 +14,23 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase (真实写操作)
+      - name: 数据库直连保活（Session pooler）
+        env:
+          PASS: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          fi
+          PGPASSWORD="$PASS" psql -w -h aws-1-ap-northeast-2.pooler.supabase.com \
+            -p 5432 -U "postgres.vwsgzgffyhojluzccuif" -d postgres \
+            -c "SELECT 1 AS alive;"
+          CODE=$?
+          echo "psql direct -> exit $CODE"
+          if [ "$CODE" != "0" ]; then
+            echo "::error::数据库直连失败（密码错误/网络问题/项目已暂停）"
+            exit 1
+          fi
+      - name: Ping Supabase (REST 心跳,真实写操作)
         env:
           KEY: sb_publishable_tSqvz01p0fj9td5QBjyRIQ_chV02GUg
           URL: https://vwsgzgffyhojluzccuif.supabase.co
